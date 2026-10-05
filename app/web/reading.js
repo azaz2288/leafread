@@ -78,7 +78,7 @@ openChapter=async(next,position=0)=>{
   }catch(error){loading=false;updatePage();throw error;}
 };
 const beforeReadingOpen=openBook;
-openBook=async id=>{if(book&&!loading)await save();chapterRequest=0;chapterText='';await beforeReadingOpen(id);setToc(!matchMedia('(max-width:800px)').matches&&readingPrefs.toc);};
+openBook=async id=>{if(book&&book.id!==id&&!loading)await save();chapterRequest=0;chapterText='';tocFilter.value='';await beforeReadingOpen(id);setToc(!matchMedia('(max-width:800px)').matches&&readingPrefs.toc);};
 const beforeReadingBack=$('#back').onclick;
 $('#back').onclick=guard(async()=>{if(loading)return;focusReading(false);await beforeReadingBack();document.body.classList.remove('paged-reading');if(document.fullscreenElement)await document.exitFullscreen();});
 function applyReadingSettings(){const position=book?ratio():0;settings();readingPrefs.mode=$('#read-mode').value;readingPrefs.line=$('#read-line').value;readingPrefs.width=$('#read-width').value;rememberReading();layoutReading(position);if(book&&!loading)guard(save)();}
