@@ -1,6 +1,6 @@
 import re
 
-HEADING=re.compile(r'^\s*(?:第[零〇一二三四五六七八九十百千万两\d]+[章回卷节部篇]|chapter\s+\d+|序章|楔子|尾声|后记)(?:\s|[：:.、]|$)',re.I)
+HEADING=re.compile(r'^\s*(?:第[零〇一二三四五六七八九十百千万两\d]+[章回卷节部篇]|(?:chapter\s+\d+|序章|楔子|尾声|后记)(?:\s|[：:.、]|$))',re.I)
 
 
 def parse_chapters(text, maximum=12000):

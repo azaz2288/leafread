@@ -25,6 +25,9 @@ class ReaderTests(unittest.TestCase):
         text='长'*25001;parts=parse_chapters(text)
         self.assertEqual(len(parts),3);self.assertEqual(''.join(p[1] for p in parts),text)
         self.assertLessEqual(max(len(p[1]) for p in parts),12000)
+    def test_chinese_heading_without_space(self):
+        parts=parse_chapters('第一章初遇\n正文一\n第二章出发\n正文二')
+        self.assertEqual([p[0] for p in parts],['第一章初遇','第二章出发'])
     def test_invalid_empty_and_non_text(self):
         self.assertEqual(self.upload(b'\x00\x01\x00').status_code,400)
         self.assertEqual(self.upload(b'   ').status_code,400)
