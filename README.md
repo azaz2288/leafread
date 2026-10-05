@@ -11,6 +11,7 @@
 - TXT导出、回收站恢复、JSON书库备份与校验后事务恢复
 - 账户书库隔离、PWA壳缓存、整书IndexedDB离线副本、账户专属离线进度队列
 - 版本化进度同步、409冲突检测与用户选择本机/服务器进度；登出清除离线副本
+- 按屏分页/滚动、触摸与键盘翻页、目录收起/筛选、字号/行距/正文宽度、专注和全屏；同Wi-Fi手机访问说明见运行文档。
 
 ## 运行
 
@@ -35,7 +36,7 @@ python -m unittest discover -s tests -v
 python -m compileall -q app tests
 ```
 
-26项全部通过，包含UTF编码有无BOM、GBK/GB18030与Big5、夹带空字符、二进制与损坏Unicode拒绝、恶意EPUB、账户隔离、同步冲突和备份恢复。真实31MiB合成TXT导入和末章搜索不截断。实际约23MiB UTF-8文件夹带512空字符的导入问题已复现并修复。Linux/Windows CI使用同一提交验证。
+29项全部通过，包含LAN账户/Host/Origin边界、UTF编码有无BOM、GBK/GB18030与Big5、夹带空字符、二进制与损坏Unicode拒绝、恶意EPUB、账户隔离、同步冲突和备份恢复。真实31MiB合成TXT导入和末章搜索不截断。实际约23MiB UTF-8文件夹带512空字符的导入问题已复现并修复。Linux/Windows CI使用同一提交验证。
 
 ## 已知边界
 

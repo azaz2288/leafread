@@ -13,13 +13,14 @@ def install_accounts(app,root):
         db.executescript("""CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,username TEXT UNIQUE,password TEXT,created REAL);
           CREATE TABLE IF NOT EXISTS sessions(digest TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id) ON DELETE CASCADE,expires REAL);
           CREATE TABLE IF NOT EXISTS login_attempts(client TEXT PRIMARY KEY,count INTEGER,started REAL);""")
-    def identity(request):
+    def identity(request,allow_guest=False):
         raw=request.cookies.get(cookie_name,'')
         if raw:
             digest=hashlib.sha256(raw.encode()).hexdigest()
             with database(root) as db:
                 user=db.execute('SELECT u.id,u.username FROM users u JOIN sessions s ON s.user_id=u.id WHERE s.digest=? AND s.expires>?',(digest,time.time())).fetchone()
             if user:return dict(user)
+        if app.state.lan_mode and not allow_guest:raise HTTPException(401,'手机共享模式需要先登录账户')
         return {'id':'local','username':'本地访客'}
     def issue(db,response,user):
         token=secrets.token_urlsafe(32)
@@ -51,7 +52,7 @@ def install_accounts(app,root):
             db.execute('DELETE FROM login_attempts WHERE client=?',(client,))
             return issue(db,response,user)
     @app.get('/api/auth/me')
-    def me(request:Request):return identity(request)
+    def me(request:Request):return identity(request,allow_guest=True)
     @app.post('/api/auth/logout')
     def logout(request:Request,response:Response):
         with database(root) as db:db.execute('DELETE FROM sessions WHERE digest=?',(hashlib.sha256(request.cookies.get(cookie_name,'').encode()).hexdigest(),))

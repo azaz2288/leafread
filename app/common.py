@@ -1,6 +1,7 @@
 from pathlib import Path
 from contextlib import contextmanager
 import os
+import ipaddress
 import sqlite3
 from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, UploadFile
@@ -11,10 +12,16 @@ from .text_encoding import decode_text
 
 def prepare(app: FastAPI, root: Path):
     root.mkdir(parents=True, exist_ok=True)
+    lan_host=os.environ.get('LEAFREAD_LAN_HOST','')
+    if lan_host:
+        address=ipaddress.ip_address(lan_host)
+        if address.version!=4 or not any(address in ipaddress.ip_network(block) for block in ['10.0.0.0/8','172.16.0.0/12','192.168.0.0/16']):
+            raise ValueError('LEAFREAD_LAN_HOST must be a specific private IPv4 address')
+    app.state.lan_mode=bool(lan_host)
     @app.middleware("http")
     async def local_only(request, call_next):
         host = request.url.hostname
-        if host not in {"localhost", "127.0.0.1", "::1", "testserver"}:
+        if host not in {"localhost", "127.0.0.1", "::1", "testserver",lan_host}:
             return JSONResponse({"detail": "仅允许本机访问"}, status_code=403)
         if request.method not in {"GET", "HEAD", "OPTIONS"}:
             origin = request.headers.get("origin")
@@ -26,6 +33,8 @@ def prepare(app: FastAPI, root: Path):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "same-origin"
         response.headers["Content-Security-Policy"] = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'"
+        if not request.url.path.startswith('/api/'):
+            response.headers['Cache-Control']='no-cache'
         return response
     return app
 
