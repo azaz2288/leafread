@@ -1,20 +1,19 @@
 # LeafRead · 本地阅读管理器
 
-导入TXT，识别常见中文编码并生成章节；管理书架、搜索正文、保存进度和书签，自定义阅读字号与背景。
-
-**状态：v0.1 可运行基础版，按路线图持续开发。默认只允许本机访问。**
+**v0.2 可运行功能版**。默认只允许本机访问。
 
 ## 已实现
 
-- UTF-8/UTF-16/GB18030 文本导入，10MiB限额与内容去重
-- 中文章节和英文Chapter识别，无章节长文本自动分段
-- 书架、章节目录、阅读定位、进度、书签
-- 正文检索并跳转到对应章节
-- 阅读字号与亮/暖/暗主题，本地偏好与进度持久化
+- TXT默认128MiB（LEAFREAD_MAX_UPLOAD_MIB可配1–1024）、页面上传进度、常见中文编码识别、章节拆分、按账户去重；EPUB安全归档解析、spine顺序与纯文本阅读
+- 书架、章节目录、进度、书签备注编辑、字体主题、键盘左右翻章
+- FTS5正文索引、命中高亮跳转、选段批注、笔记编辑删除和Markdown导出
+- TXT导出、回收站恢复、JSON书库备份与校验后事务恢复
+- 账户书库隔离、PWA壳缓存、整书IndexedDB离线副本、账户专属离线进度队列
+- 版本化进度同步、409冲突检测与用户选择本机/服务器进度；登出清除离线副本
 
 ## 运行
 
-需要 Python 3.12。Windows PowerShell：
+Python 3.12，Windows PowerShell：
 
 ```powershell
 python -m venv .venv
@@ -22,11 +21,11 @@ python -m venv .venv
 .venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8767
 ```
 
-浏览器打开 http://127.0.0.1:8767 。其他系统用 `.venv/bin/python`；已安装依赖可直接运行 `run.cmd`。配置 `APP_DATA_DIR` 可改变数据目录。
+打开 http://127.0.0.1:8767 。已有依赖时可用 `run.cmd`。其他系统使用 `.venv/bin/python`。`APP_DATA_DIR`覆盖数据目录。
 
-## 数据
+## 数据与备份
 
-data/app.db 含用户书籍全文和阅读记录，必须备份但不得提交Git。
+数据位于data/，已排除Git；不要提交数据库、导入内容、磁盘清单或密钥。详细启动、备份和部署边界见 [运行说明](docs/OPERATIONS.md)。
 
 ## 验证
 
@@ -35,18 +34,16 @@ python -m unittest discover -s tests -v
 python -m compileall -q app tests
 ```
 
-CI在Linux和Windows运行相同测试。实际执行证据见 [进度](docs/PROGRESS.md)。
+20项全部通过，包含恶意EPUB、编码长文本、账户隔离、批注、同步冲突、备份带书签/笔记/进度恢复及非法备份原子拒绝。浏览器离线重开、切章、回网同步已验证。真实31MiB合成TXT导入和末章搜索不截断。 Linux/Windows CI使用同一提交验证。
 
 ## 已知边界
 
-- 第一版只支持TXT，没有EPUB/PDF；章节识别为规则方法
-- 正文搜索为SQLite LIKE扫描，大书库全文索引在路线图
-- 单用户本地阅读，尚无账户、跨设备同步、离线PWA
-- 阅读位置采用章节及比例，字体改变后并非逐字精确定位
+- EPUB仅提取文本，未保留图片、复杂排版和原始版式；不支持PDF阅读。
+- 离线前需点“保存整本离线副本”；离线支持已缓存正文和进度，批注/导入/书签修改需联网。
+- 进度按章节和滚动比例定位；字体变化后不是逐字精确定位。
+- 同步面向同一后端的多个客户端，不是已部署的跨设备云服务；没有原生桌面安装器。
+- 默认回环访问，访客local是本机共享空间；账户可隔离内容，但不是公网多租户安全承诺。Cookie为本机HTTP设置，公网需TLS、安全Cookie、关闭访客、限流与部署审计。
 
-## 设计与后续
-
-- [架构设计](docs/DESIGN.md)
-- [按顺序开发的里程碑](docs/ROADMAP.md)
+[架构设计](docs/DESIGN.md) · [路线图](docs/ROADMAP.md) · [验收记录](docs/PROGRESS.md)
 
 MIT License。用户导入内容不随源码发布。

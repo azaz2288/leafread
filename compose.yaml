@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:8767:8767"
+    volumes:
+      - app-data:/data
+    restart: unless-stopped
+volumes:
+  app-data:

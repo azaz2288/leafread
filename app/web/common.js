@@ -4,7 +4,7 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 async function api(path, options={}) {
   const response = await fetch('/api' + path, options);
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof body.detail === 'string' ? body.detail : '操作失败，请检查输入');
+  if (!response.ok) {const error=new Error(typeof body.detail === 'string' ? body.detail : '操作失败，请检查输入');error.status=response.status;throw error;}
   return body;
 }
 const post = (path, body) => api(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});

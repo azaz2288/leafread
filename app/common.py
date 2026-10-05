@@ -52,7 +52,7 @@ def database(root):
 def read_upload(file: UploadFile, maximum: int):
     raw = file.file.read(maximum + 1)
     if len(raw) > maximum:
-        raise HTTPException(413, "文件超过大小限制")
+        raise HTTPException(413, f"文件超过当前{maximum//(1024*1024)}MiB限制；可在启动时配置LEAFREAD_MAX_UPLOAD_MIB")
     if not raw:
         raise HTTPException(400, "不能导入空文件")
     return raw
