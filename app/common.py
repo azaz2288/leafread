@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from .text_encoding import decode_text
 
 
 def prepare(app: FastAPI, root: Path):
@@ -56,22 +57,6 @@ def read_upload(file: UploadFile, maximum: int):
     if not raw:
         raise HTTPException(400, "不能导入空文件")
     return raw
-
-
-def decode_text(raw: bytes):
-    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
-        encodings = ["utf-16"]
-    else:
-        encodings = ["utf-8-sig", "gb18030"]
-    for encoding in encodings:
-        try:
-            text = raw.decode(encoding)
-            if "\x00" in text:
-                continue
-            return text.replace("\r\n", "\n").replace("\r", "\n"), encoding
-        except UnicodeError:
-            pass
-    raise HTTPException(400, "无法识别文本编码，请转换为 UTF-8")
 
 
 def data_root(name):

@@ -2,6 +2,8 @@
 
 main.py负责导入与阅读API；epub.py不解压到文件系统，限制ZIP条目与XML实体。library.py维护FTS5触发器、批注、版本进度；restore.py先验证整份备份再开启写事务。offline.js按账户缓存只读书库API，localStorage仅保存进度队列，sw.js缓存页面壳，不缓存API。
 
+text_encoding.py在本机处理TXT：优先BOM与严格UTF-8，最多256KiB采样检测，再对全文件严格解码；对齐换行辅助识别无BOM Unicode。稀疏NUL字符占比不超过0.1%时移除并报告数量，稠密NUL与明显二进制拒绝。自动猜测有歧义时用户可指定编码；编码损坏不以替换符静默丢字。原文件不写回。
+
 ## 模块和边界
 
 FastAPI + SQLite + 无构建原生Web UI。数据库外部调用不放入长写事务；默认Host/Origin校验、CSP和输入转义。

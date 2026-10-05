@@ -9,7 +9,8 @@ import time
 import uuid
 from fastapi import FastAPI, HTTPException, UploadFile, File, Query, Request
 from pydantic import BaseModel, Field
-from .common import prepare,mount_ui,database,data_root,read_upload,decode_text
+from .common import prepare,mount_ui,database,data_root,read_upload
+from .text_encoding import decode_text_details,IMPORT_ENCODINGS
 from .chapters import parse_chapters
 
 
@@ -39,7 +40,7 @@ def create_app(root=None):
     max_upload=int(os.getenv('LEAFREAD_MAX_UPLOAD_MIB','128'))*1024*1024
     if max_upload<1024*1024 or max_upload>1024**3:raise ValueError('LEAFREAD_MAX_UPLOAD_MIB must be between 1 and 1024')
     @app.get('/api/config')
-    def config():return {'max_upload_bytes':max_upload,'formats':['.txt','.epub']}
+    def config():return {'max_upload_bytes':max_upload,'formats':['.txt','.epub'],'import_encodings':IMPORT_ENCODINGS}
     def book(db,ident,user='local'):
         row=db.execute('SELECT * FROM books WHERE id=?',(ident,)).fetchone()
         if not row or row['owner']!=user or row['deleted']: raise HTTPException(404,'书籍不存在或没有权限')
@@ -53,14 +54,17 @@ def create_app(root=None):
             return [dict(r) for r in db.execute('SELECT b.*, (SELECT count(*) FROM chapters c WHERE c.book_id=b.id) AS chapter_count FROM books b WHERE instr(lower(title),lower(?))>0 AND owner=? AND deleted=0 ORDER BY created DESC',(q,identity(request)['id']))]
 
     @app.post('/api/books',status_code=201)
-    def upload(request:Request,file:UploadFile=File(...)):
+    def upload(request:Request,file:UploadFile=File(...),encoding_hint:str=Query('auto',max_length=30)):
         suffix=Path(file.filename or '').suffix.lower()
         if suffix not in {'.txt','.epub'}:raise HTTPException(400,'请导入TXT或EPUB文件')
         raw=read_upload(file,max_upload)
+        removed_nulls=0
         if suffix=='.epub':
             epub_title,chapters=parse_epub(raw);text='\n'.join(t+'\n'+b for t,b in chapters);encoding='EPUB UTF-8'
         else:
-            text,encoding=decode_text(raw);chapters=parse_chapters(text)
+            decoded=decode_text_details(raw,encoding_hint)
+            text,encoding=decoded.text,decoded.encoding;removed_nulls=decoded.removed_null_characters
+            chapters=parse_chapters(text)
         text=text.strip()
         if not text:raise HTTPException(400,'书籍正文为空')
         digest=hashlib.sha256((identity(request)['id']+'\n'+text).encode('utf-8')).hexdigest()
@@ -68,12 +72,12 @@ def create_app(root=None):
         with database(root) as db:
             row=db.execute('SELECT id FROM books WHERE digest=?',(digest,)).fetchone()
             if row:
-                db.execute('UPDATE books SET deleted=0 WHERE id=?',(row['id'],));return {**book(db,row['id'],identity(request)['id']),'duplicate':True}
+                db.execute('UPDATE books SET deleted=0 WHERE id=?',(row['id'],));return {**book(db,row['id'],identity(request)['id']),'duplicate':True,'removed_null_characters':removed_nulls,'detected_encoding':encoding}
             ident=uuid.uuid4().hex
             title=epub_title[:150] if suffix=='.epub' else Path(file.filename.replace('\\','/')).stem[:150]
             db.execute('INSERT INTO books(id,title,digest,encoding,characters,created,owner) VALUES(?,?,?,?,?,?,?)',(ident,title,digest,encoding,len(text),time.time(),identity(request)['id']))
             db.executemany('INSERT INTO chapters VALUES(?,?,?,?)',[(ident,i,t,b) for i,(t,b) in enumerate(chapters)])
-            return {**book(db,ident,identity(request)['id']),'duplicate':False}
+            return {**book(db,ident,identity(request)['id']),'duplicate':False,'removed_null_characters':removed_nulls,'detected_encoding':encoding}
 
     @app.get('/api/books/{ident}')
     def detail(ident:str,request:Request):
