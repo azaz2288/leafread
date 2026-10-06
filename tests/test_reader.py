@@ -2,6 +2,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from fastapi.testclient import TestClient
+from test_support import bootstrap
 from app.main import create_app
 from app.chapters import parse_chapters
 

@@ -3,6 +3,7 @@ from fastapi import HTTPException,Request
 from fastapi.responses import Response
 from pydantic import BaseModel,Field
 from .common import database
+from .illustrations import backup_images
 
 class Annotation(BaseModel):
     chapter:int=Field(ge=0)
@@ -78,6 +79,7 @@ def install_library(app,root,identity):
         with database(root) as db:
             books=[dict(r) for r in db.execute('SELECT * FROM books WHERE owner=?',(identity(request)['id'],))]
             for book in books:
+                book['illustrations']=backup_images(db,book['id'])
                 for table in ['chapters','bookmarks','annotations']:book[table]=[dict(r) for r in db.execute(f'SELECT * FROM {table} WHERE book_id=?'+(' ORDER BY idx' if table=='chapters' else ' ORDER BY created'),(book['id'],))]
         return Response(json.dumps({'version':1,'books':books},ensure_ascii=False),media_type='application/json',headers={'Content-Disposition':'attachment; filename="leafread-backup.json"'})
     @app.get('/api/library/books/{ident}/sync')

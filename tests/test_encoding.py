@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from test_support import bootstrap
 from app.main import create_app
 from app.text_encoding import decode_text_details
 

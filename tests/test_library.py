@@ -4,6 +4,7 @@ def synthetic_password(suffix):
 from pathlib import Path
 import io,tempfile,unittest,zipfile,json
 from fastapi.testclient import TestClient
+from test_support import bootstrap
 from app.main import create_app
 
 def epub(unsafe=False):

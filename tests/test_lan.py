@@ -2,6 +2,7 @@ import os,tempfile,unittest,argparse
 from pathlib import Path
 from unittest.mock import patch
 from fastapi.testclient import TestClient
+from test_support import bootstrap
 from app.main import create_app
 from app.lan import private_host
 

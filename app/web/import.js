@@ -26,7 +26,7 @@ $('#file').onchange=guard(async()=>{
       req.onload=()=>{let result;try{result=JSON.parse(req.responseText);}catch{result={};}if(req.status>=200&&req.status<300)resolve(result);else reject(Error(result.detail||'导入失败'));};
       req.onerror=()=>reject(Error('连接失败，书籍未完成导入'));req.send(body);
     });
-    importResult.textContent=`“${result.title}”导入完成 · 编码 ${result.detected_encoding||result.encoding} · ${result.characters.toLocaleString()}字 · ${result.chapters.length}节${result.removed_null_characters?' · 已自动移除 '+result.removed_null_characters+' 个空字符':''} · 原文件保留`;
+    importResult.textContent=`“${result.title}”导入完成 · 编码 ${result.detected_encoding||result.encoding} · ${result.characters.toLocaleString()}字 · ${result.chapters.length}节${result.removed_null_characters?' · 已自动移除 '+result.removed_null_characters+' 个空字符':''}${result.illustration_count?' · '+result.illustration_count+' 张安全插图':''}${result.illustration_warnings?.length?' · '+result.illustration_warnings.join('；'):''} · 原文件保留`;
     toast('编码已自动处理，导入完成');await library();
   }catch(error){importResult.textContent=error.message;throw error;}
   finally{$('#file').disabled=false;encodingControl.disabled=false;$('#file').value='';}

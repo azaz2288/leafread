@@ -2,7 +2,8 @@ from pathlib import Path
 from .accounts import install_accounts
 import hashlib
 import os
-from .epub import parse_epub
+from .epub import parse_epub_details
+from .illustrations import install_illustrations,save_images,content_digest
 from .library import install_library
 from .restore import install_restore
 import time
@@ -25,7 +26,7 @@ class Bookmark(Position):
 
 def create_app(root=None):
     root=Path(root or data_root('leafread'))
-    app=prepare(FastAPI(title='LeafRead',version='0.2.0'),root)
+    app=prepare(FastAPI(title='LeafRead',version='0.2.1'),root)
     identity=install_accounts(app,root)
     with database(root) as db:
         db.executescript('''CREATE TABLE IF NOT EXISTS books(id TEXT PRIMARY KEY,title TEXT,digest TEXT UNIQUE,encoding TEXT,characters INTEGER,created REAL,chapter INTEGER DEFAULT 0,ratio REAL DEFAULT 0);
@@ -35,6 +36,7 @@ def create_app(root=None):
     with database(root) as db:
         for column,ddl in [('owner',"TEXT DEFAULT 'local'"),('deleted','INTEGER DEFAULT 0')]:
             if column not in {r[1] for r in db.execute('PRAGMA table_info(books)')}:db.execute(f'ALTER TABLE books ADD COLUMN {column} {ddl}')
+    install_illustrations(app,root,identity)
     install_library(app,root,identity)
     install_restore(app,root,identity)
     max_upload=int(os.getenv('LEAFREAD_MAX_UPLOAD_MIB','128'))*1024*1024
@@ -58,26 +60,27 @@ def create_app(root=None):
         suffix=Path(file.filename or '').suffix.lower()
         if suffix not in {'.txt','.epub'}:raise HTTPException(400,'请导入TXT或EPUB文件')
         raw=read_upload(file,max_upload)
-        removed_nulls=0
+        removed_nulls=0;images=[];image_warnings=[]
         if suffix=='.epub':
-            epub_title,chapters=parse_epub(raw);text='\n'.join(t+'\n'+b for t,b in chapters);encoding='EPUB UTF-8'
+            epub_title,chapters,images,image_warnings=parse_epub_details(raw);text='\n'.join(t+'\n'+b for t,b in chapters);encoding='EPUB UTF-8'
         else:
             decoded=decode_text_details(raw,encoding_hint)
             text,encoding=decoded.text,decoded.encoding;removed_nulls=decoded.removed_null_characters
             chapters=parse_chapters(text)
         text=text.strip()
         if not text:raise HTTPException(400,'书籍正文为空')
-        digest=hashlib.sha256((identity(request)['id']+'\n'+text).encode('utf-8')).hexdigest()
+        digest=content_digest(identity(request)['id'],text,images)
         if not chapters:raise HTTPException(400,'没有可阅读的正文')
         with database(root) as db:
             row=db.execute('SELECT id FROM books WHERE digest=?',(digest,)).fetchone()
             if row:
-                db.execute('UPDATE books SET deleted=0 WHERE id=?',(row['id'],));return {**book(db,row['id'],identity(request)['id']),'duplicate':True,'removed_null_characters':removed_nulls,'detected_encoding':encoding}
+                db.execute('UPDATE books SET deleted=0 WHERE id=?',(row['id'],));return {**book(db,row['id'],identity(request)['id']),'duplicate':True,'removed_null_characters':removed_nulls,'detected_encoding':encoding,'illustration_count':len(images),'illustration_warnings':image_warnings}
             ident=uuid.uuid4().hex
             title=epub_title[:150] if suffix=='.epub' else Path(file.filename.replace('\\','/')).stem[:150]
             db.execute('INSERT INTO books(id,title,digest,encoding,characters,created,owner) VALUES(?,?,?,?,?,?,?)',(ident,title,digest,encoding,len(text),time.time(),identity(request)['id']))
             db.executemany('INSERT INTO chapters VALUES(?,?,?,?)',[(ident,i,t,b) for i,(t,b) in enumerate(chapters)])
-            return {**book(db,ident,identity(request)['id']),'duplicate':False,'removed_null_characters':removed_nulls,'detected_encoding':encoding}
+            save_images(db,ident,images)
+            return {**book(db,ident,identity(request)['id']),'duplicate':False,'removed_null_characters':removed_nulls,'detected_encoding':encoding,'illustration_count':len(images),'illustration_warnings':image_warnings}
 
     @app.get('/api/books/{ident}')
     def detail(ident:str,request:Request):
