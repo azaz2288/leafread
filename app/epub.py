@@ -2,10 +2,14 @@
 from html.parser import HTMLParser
 from pathlib import PurePosixPath
 import io,posixpath,zipfile
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
 from urllib.parse import urlsplit,unquote
 from .illustrations import normalize_image,MAX_IMAGES,MAX_IMAGE_BYTES,MAX_TOTAL_BYTES,MIME_FORMATS
 from fastapi import HTTPException
+
+MAX_XML_BYTES=2*1024*1024
+MAX_XML_ELEMENTS=10000
+MAX_XML_DEPTH=64
 
 class TextParser(HTMLParser):
     def __init__(self):super().__init__();self.parts=[];self.skip=0;self.images=[]
@@ -41,11 +45,19 @@ def parse_epub_details(raw):
                 if info.file_size>128*1024*1024 or info.file_size>max(1,info.compress_size)*500:raise ValueError('compression limit')
             if len({i.filename for i in infos})!=len(infos):raise ValueError('duplicate archive names')
             def xml(name):
+                if archive.getinfo(name).file_size>MAX_XML_BYTES:raise ValueError('metadata XML bytes')
                 data=archive.read(name)
-                if b'<!DOCTYPE' in data.upper() or b'<!ENTITY' in data.upper():raise ValueError('XML entities')
-                return ET.fromstring(data)
+                # Parser-level guards apply to UTF-16 as well as UTF-8; raw-byte
+                # substring checks can be bypassed by a legal XML encoding.
+                tree=ET.fromstring(data,forbid_dtd=True,forbid_entities=True,forbid_external=True)
+                stack=[(tree,1)];count=0
+                while stack:
+                    node,depth=stack.pop();count+=1
+                    if count>MAX_XML_ELEMENTS or depth>MAX_XML_DEPTH:raise ValueError('metadata XML structure')
+                    stack.extend((child,depth+1) for child in node)
+                return tree
             container=xml('META-INF/container.xml')
-            opf=next(e.attrib['full-path'] for e in container.iter() if e.tag.endswith('rootfile'))
+            opf=resource_path('',next(e.attrib['full-path'] for e in container.iter() if e.tag.endswith('rootfile')))
             package=xml(opf);folder=posixpath.dirname(opf)
             manifest={e.attrib['id']:e.attrib for e in package.iter() if e.tag.endswith('item')}
             title=next((e.text for e in package.iter() if e.tag.endswith('title') and e.text),'EPUB书籍')

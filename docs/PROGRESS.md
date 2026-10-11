@@ -1,5 +1,10 @@
 # 开发记录
 
+## 2026-10-11 v0.2.2 EPUB XML安全
+- 独立8898临时书库实际浏览器：UTF-16 DTD上传明确拒绝且书架仍1本；合法UTF-16原创EPUB可读，390×844时内容宽390、1/6页，console error/warn为空。拒绝和阅读截图保存在根maintenance/reports；视口恢复、tab关闭、服务正常停止，不接触已有书库。
+- 主动审查发现raw-byte DOCTYPE/ENTITY检查对UTF-16漏拦。首6方法11fail含子case/一条共享tmp继发库非空断言，不当11独立漏洞；后每case独立tmp。defusedxml0.7.1只安装本项目venv、官方PyPI，不修改其他环境；container/OPF解析层拒绝DTD/实体/外部引用，rootfile路径规范化，XML≤2MiB/1万节点/64层。正常UTF-16正文/标题保留，拒绝上传书/章节/图片/FTS不写入。
+- 8target0.827s与54full9.346s全过；exact-depth首fixture因title多一层65被拒，改为64边界通过，不改安全限额。完整复杂版式/行内图/PDF/离线图仍未完，树构造后节点检查不是硬资源沙箱。SW缓存v11与页面/API0.2.2同步，独立8898合成演示验证/发布当前SHA CI见根手动报告，不读取已有用户书库/服务。
+
 ## 2026-10-07 v0.2.1 安全插图阶段
 
 - 实现manifest栅格引用/Pillow实际解码/单帧与像素字节限额/去元数据PNG，同事务书籍与图片写入；图片账户隔离、回收站404、no-store响应。

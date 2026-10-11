@@ -1,4 +1,4 @@
-# 架构设计 · v0.2.1
+# 架构设计 · v0.2.2
 
 main.py负责导入与阅读API；epub.py不解压到文件系统，限制ZIP条目与XML实体。library.py维护FTS5触发器、批注、版本进度；restore.py先验证整份备份再开启写事务。offline.js按账户缓存只读书库API，localStorage仅保存进度队列，sw.js缓存页面壳，不缓存API。
 
@@ -20,7 +20,7 @@ reading.js以CSS columns显示单章，每屏一页，不裁掉或复制正文�
 
 illustrations.py以Pillow验证真实格式、单帧、像素/边长/字节限额，重建像素PNG移除EXIF/profile/text元数据。图片与book/chapters/FTS在同一SQLite事务写入；images BLOB表有book外键。列表/PNG端点均验证书主及未删除状态，PNG响应private/no-store；归档原始HTML/SVG不提供给浏览器。
 
-epub.py规范化url解码后的归档相对路径，只允许未越出ZIP根的manifest资源；拒绝ZIP重复名/过量压缩等，超限栅格拒绝整本导入，外部/data/SVG等跳过并返回不含源地址的提示。单张原始及PNG≤2MiB、边≤4096、像素≤800万，200张/32MiB全书限额。长正文按12000字符拆分，插图归原章首节；不是行内版式。既有XML字节DOCTYPE/ENTITY检查不等于全面XML沙箱，其他编码等扩展防护仍需独立审计。
+epub.py规范化url解码后的归档相对路径，只允许未越出ZIP根的manifest资源；拒绝ZIP重复名/过量压缩等，超限栅格拒绝整本导入，外部/data/SVG等跳过并返回不含源地址的提示。单张原始及PNG≤2MiB、边≤4096、像素≤800万，200张/32MiB全书限额。长正文按12000字符拆分，插图归原章首节；不是行内版式。v0.2.2 container/OPF以defusedxml forbid_dtd/entities/external解析，拒绝UTF-16绕过字节检查；读元数据前声明字节≤2MiB，再实际解析/节点≤1万/深≤64，rootfile也规范化归档路径。节点/深度在树构造后核验，字节限额不是硬资源沙箱。正常无DTD UTF-8/UTF-16兼容，含DTD文档明确拒绝。
 
 含图片digest加入章节/顺序/alt/PNG SHA256；无图片保持历史文本digest。backup v1增加base64 illustrations；恢复先实际解码所有图片/验证位置和尺寸/整份200张32MiB总限额，再单事务写所有书籍。旧无图备份兼容，旧客户端丢弃新增字段的兼容损失不保证。书库导出超过恢复总限额时需分批迁移。
 
