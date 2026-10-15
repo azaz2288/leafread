@@ -1,5 +1,10 @@
 # 开发记录
 
+## 2026-10-15 v0.2.3 离线插图副本
+- 保存整本离线副本现在同时缓存章节插图目录与规范化PNG Blob；画廊通过Blob URL读取，切章/返回释放URL，登出清除正文、进度和图片缓存。在线失败时优先使用当前账户的缓存图片，仍不缓存原始EPUB或外链资源。
+- IndexedDB从v1升级到同库v2并新增images object store，service worker壳缓存升级v12；旧正文/进度缓存通过数据库升级保留。所有API/图片权限仍由在线后端校验，离线副本只在本机账户作用域内读取。
+- 本阶段54项Python回归、3个前端脚本`node --check`、合成EPUB导入/画廊/离线副本UI通过；浏览器以临时8895服务和原创合成书验证，未读取既有书库。离线网络切换与真实移动设备尚未连接，IndexedDB容量和浏览器配额不是硬资源保证。
+
 ## 2026-10-11 v0.2.2 EPUB XML安全
 - 独立8898临时书库实际浏览器：UTF-16 DTD上传明确拒绝且书架仍1本；合法UTF-16原创EPUB可读，390×844时内容宽390、1/6页，console error/warn为空。拒绝和阅读截图保存在根maintenance/reports；视口恢复、tab关闭、服务正常停止，不接触已有书库。
 - 主动审查发现raw-byte DOCTYPE/ENTITY检查对UTF-16漏拦。首6方法11fail含子case/一条共享tmp继发库非空断言，不当11独立漏洞；后每case独立tmp。defusedxml0.7.1只安装本项目venv、官方PyPI，不修改其他环境；container/OPF解析层拒绝DTD/实体/外部引用，rootfile路径规范化，XML≤2MiB/1万节点/64层。正常UTF-16正文/标题保留，拒绝上传书/章节/图片/FTS不写入。

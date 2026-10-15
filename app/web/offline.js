@@ -1,9 +1,27 @@
-// Offline copies are scoped to the active local account and only cache library read APIs.
+// Offline copies are scoped to the active local account and cache read APIs plus
+// normalized illustration bytes explicitly saved by the reader.
 let offlineUser='local';
-function offlineDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open('leafread-offline-v1',1);req.onupgradeneeded=()=>req.result.createObjectStore('responses');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
+function offlineDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open('leafread-offline-v1',2);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('responses'))req.result.createObjectStore('responses');if(!req.result.objectStoreNames.contains('images'))req.result.createObjectStore('images');};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
 async function offlineRead(key){const db=await offlineDB();return new Promise((resolve,reject)=>{const tx=db.transaction('responses','readonly');const req=tx.objectStore('responses').get(key);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);tx.oncomplete=()=>db.close();});}
 async function offlineWrite(key,value){const db=await offlineDB();return new Promise((resolve,reject)=>{const tx=db.transaction('responses','readwrite');tx.objectStore('responses').put(value,key);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);});}
-const liveApi=api;api=async(path,options={})=>{const read=!options.method||options.method==='GET';const cacheable=read&&(/^\/books(?:\/|\?|$)/.test(path)||/^\/library\/books\/[^/]+\/sync$/.test(path));try{const result=await liveApi(path,options);if(path==='/auth/me'){offlineUser=result.id;await offlineWrite('identity',result);}if(path==='/auth/logout'){localStorage.removeItem(pendingKey());const db=await offlineDB();await new Promise(resolve=>{const tx=db.transaction('responses','readwrite');tx.objectStore('responses').clear();tx.oncomplete=resolve;});db.close();}if(cacheable)await offlineWrite(offlineUser+':'+path,result);return result;}catch(error){if(!navigator.onLine||error instanceof TypeError){if(path==='/auth/me'){const saved=await offlineRead('identity');if(saved){offlineUser=saved.id;return saved;}}if(cacheable){const saved=await offlineRead(offlineUser+':'+path);if(saved)return saved;}}throw error;}};
+async function offlineImageRead(key){const db=await offlineDB();return new Promise((resolve,reject)=>{const tx=db.transaction('images','readonly');const req=tx.objectStore('images').get(key);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);tx.oncomplete=()=>db.close();});}
+async function offlineImageWrite(key,value){const db=await offlineDB();return new Promise((resolve,reject)=>{const tx=db.transaction('images','readwrite');tx.objectStore('images').put(value,key);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);});}
+async function clearOffline(){const db=await offlineDB();await new Promise(resolve=>{const tx=db.transaction(['responses','images'],'readwrite');tx.objectStore('responses').clear();tx.objectStore('images').clear();tx.oncomplete=resolve;});db.close();}
+const liveApi=api;api=async(path,options={})=>{const read=!options.method||options.method==='GET';const cacheable=read&&(/^\/books(?:\/|\?|$)/.test(path)||/^\/library\/books\/[^/]+\/sync$/.test(path))&&!/\/illustrations\/\d+$/.test(path);try{const result=await liveApi(path,options);if(path==='/auth/me'){offlineUser=result.id;await offlineWrite('identity',result);}if(path==='/auth/logout'){localStorage.removeItem(pendingKey());await clearOffline();}if(cacheable)await offlineWrite(offlineUser+':'+path,result);return result;}catch(error){if(!navigator.onLine||error instanceof TypeError){if(path==='/auth/me'){const saved=await offlineRead('identity');if(saved){offlineUser=saved.id;return saved;}}if(cacheable){const saved=await offlineRead(offlineUser+':'+path);if(saved)return saved;}}throw error;}};
+async function fetchIllustration(path){
+  const key=offlineUser+':'+path;
+  try{
+    if(!navigator.onLine)throw new TypeError('offline');
+    const response=await fetch('/api'+path,{credentials:'same-origin'});
+    if(!response.ok){const error=new Error('插图加载失败');error.status=response.status;throw error;}
+    const blob=await response.blob();
+    await offlineImageWrite(key,blob);
+    return blob;
+  }catch(error){
+    if(!navigator.onLine||error instanceof TypeError){const saved=await offlineImageRead(key);if(saved)return saved;}
+    throw error;
+  }
+}
 const versions=new Map();let positionChain=Promise.resolve();
 function pendingKey(){return 'leafread-pending:'+offlineUser;}
 function pendingPositions(){try{return JSON.parse(localStorage.getItem(pendingKey())||'{}');}catch{return {};}}
@@ -14,6 +32,6 @@ async function replayPositions(){await api('/auth/me');for(const [id,position] o
 function scheduledReplay(){positionChain=positionChain.catch(()=>{}).then(replayPositions);return positionChain;}
 window.addEventListener('online',()=>guard(scheduledReplay)());
 const resolveSync=document.createElement('button');resolveSync.className='btn secondary';resolveSync.textContent='处理同步冲突';document.querySelector('.chapter-nav').before(resolveSync);resolveSync.onclick=guard(async()=>{if(!book)return;const id=book.id,local=pendingPositions()[id];const remote=await api('/library/books/'+id+'/sync');versions.set(id,remote.version);if(local&&confirm(`服务器在第${remote.chapter+1}节，本机在第${local.chapter+1}节。使用本机进度覆盖服务器？取消则使用服务器进度。`))await writePosition(id,local);const queue=pendingPositions();delete queue[id];localStorage.setItem(pendingKey(),JSON.stringify(queue));await openBook(id);toast('同步冲突已处理');});
-async function downloadOffline(){if(!book)return;toast('正在保存整本书的离线副本…');await api('/auth/me');await api('/books/'+book.id);const state=await api('/library/books/'+book.id+'/sync');versions.set(book.id,state.version);for(const c of book.chapters)await api('/books/'+book.id+'/chapters/'+c.idx);await api('/books/'+book.id+'/bookmarks');toast('整本书已可离线阅读');}
+async function downloadOffline(){if(!book)return;toast('正在保存整本书的离线副本…');await api('/auth/me');await api('/books/'+book.id);const state=await api('/library/books/'+book.id+'/sync');versions.set(book.id,state.version);for(const c of book.chapters){await api('/books/'+book.id+'/chapters/'+c.idx);const values=await api(`/books/${book.id}/chapters/${c.idx}/illustrations`);for(const value of values){if(Number.isInteger(value.ordinal)&&value.ordinal>=0)await fetchIllustration(`/books/${book.id}/chapters/${c.idx}/illustrations/${value.ordinal}`);}}await api('/books/'+book.id+'/bookmarks');toast('整本书已离线可读（含插图）');}
 const offlineButton=document.createElement('button');offlineButton.className='btn secondary';offlineButton.textContent='保存整本离线副本';document.querySelector('.chapter-nav').before(offlineButton);offlineButton.onclick=guard(downloadOffline);
 window.addEventListener('DOMContentLoaded',()=>guard(async()=>{await refreshAccount();await library();if(navigator.onLine)await scheduledReplay();})(),{once:true});
