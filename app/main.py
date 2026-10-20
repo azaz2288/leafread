@@ -26,7 +26,7 @@ class Bookmark(Position):
 
 def create_app(root=None):
     root=Path(root or data_root('leafread'))
-    app=prepare(FastAPI(title='LeafRead',version='0.2.2'),root)
+    app=prepare(FastAPI(title='LeafRead',version='0.2.4'),root)
     identity=install_accounts(app,root)
     with database(root) as db:
         db.executescript('''CREATE TABLE IF NOT EXISTS books(id TEXT PRIMARY KEY,title TEXT,digest TEXT UNIQUE,encoding TEXT,characters INTEGER,created REAL,chapter INTEGER DEFAULT 0,ratio REAL DEFAULT 0);

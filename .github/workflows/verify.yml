@@ -5,6 +5,7 @@ permissions:
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -24,3 +25,4 @@ jobs:
         shell: bash
         run: |
           for file in app/web/*.js; do node --check "$file"; done
+      - run: node --test tests/illustrations_ui.cjs
